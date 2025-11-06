@@ -10,7 +10,7 @@ from pyspark.sql.functions import col, when
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--master", default="spark://spark-master:7077")
+    parser.add_argument("--master", default=None)
     parser.add_argument("--executor-memory", default="4g")
     parser.add_argument("--driver-memory", default="2g")
     parser.add_argument("--num-executors", type=int, default=2)
@@ -21,10 +21,15 @@ def parse_args():
 
 
 def create_spark_session(args):
+    builder = SparkSession.builder.appName("fractal-cv-rf")
+
+    if args.master:
+        builder = builder.master(args.master)
+
     return (
-        SparkSession.builder.appName("fractal-cv-rf")
-        .master(args.master)
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        builder.config(
+            "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
+        )
         .config(
             "spark.hadoop.fs.s3a.aws.credentials.provider",
             "com.amazonaws.auth.DefaultAWSCredentialsProviderChain",
