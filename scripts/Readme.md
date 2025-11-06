@@ -4,7 +4,7 @@
 Local : 
 
 ```bash
-docker exec spark-submit train.py --master spark://spark-master:7077 --executor-memory 2g --num-executors 2
+docker exec spark-submit train.py --master spark://spark-master:7077 --sample-fraction 0.1 --executor-memory 2g --num-executors 2
 ```
 
 Server : 
