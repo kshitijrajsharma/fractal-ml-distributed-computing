@@ -1,9 +1,10 @@
 import argparse
 import json
 
+from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import StandardScaler, VectorAssembler
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, when
 
@@ -37,27 +38,21 @@ def create_spark_session(args):
         .config("spark.executor.memory", args.executor_memory)
         .config("spark.driver.memory", args.driver_memory)
         .config("spark.executor.instances", str(args.num_executors))
+        .config("spark.eventLog.enabled", "true")
+        .config("spark.eventLog.dir", "/opt/spark/spark-events")
         .getOrCreate()
     )
 
 
 def prepare_data(df):
-    df = df.withColumn("z", col("xyz")[2])
-    df = df.withColumn(
+    df = df.withColumn("z_raw", col("xyz")[2]).withColumn(
         "ndvi",
         when(
             (col("Infrared") + col("Red")) != 0,
             (col("Infrared") - col("Red")) / (col("Infrared") + col("Red")),
         ).otherwise(0),
     )
-
-    assembler = VectorAssembler(
-        inputCols=["z", "Intensity", "Red", "Green", "Blue", "Infrared", "ndvi"],
-        outputCol="features",
-    )
-
-    df = assembler.transform(df)
-    return df.select("features", col("Classification").alias("label"))
+    return df.select("z_raw", "Intensity", "Red", "Green", "Blue", "Infrared", "ndvi", col("Classification").alias("label"))
 
 
 def load_sample(spark, path, fraction, cols):
@@ -76,6 +71,13 @@ def main():
     val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
     test = load_sample(spark, f"{args.data_path}/test/", args.sample_fraction, cols)
 
+    z_assembler = VectorAssembler(inputCols=["z_raw"], outputCol="z_vec")
+    z_scaler = StandardScaler(inputCol="z_vec", outputCol="z", withMean=True, withStd=True)
+    assembler = VectorAssembler(
+        inputCols=["z", "Intensity", "Red", "Green", "Blue", "Infrared", "ndvi"],
+        outputCol="features",
+    )
+
     evaluator = MulticlassClassificationEvaluator(
         labelCol="label", predictionCol="prediction", metricName="accuracy"
     )
@@ -93,7 +95,8 @@ def main():
                 seed=42,
             )
 
-            model = rf.fit(val)
+            pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
+            model = pipeline.fit(val)
             accuracy = evaluator.evaluate(model.transform(val))
 
             if accuracy > best_accuracy:
@@ -106,14 +109,14 @@ def main():
 
     print(f"\nBest Params: {best_params}")
 
-    best_model = RandomForestClassifier(
+    rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
         numTrees=best_params["numTrees"],
         maxDepth=best_params["maxDepth"],
-        maxBins=best_params["maxBins"],
         seed=42,
-    ).fit(train)
+    )
+    best_model = Pipeline(stages=[z_assembler, z_scaler, assembler, rf]).fit(train)
 
     test_accuracy = evaluator.evaluate(best_model.transform(test))
     print(f"Test Accuracy: {test_accuracy:.4f}")
