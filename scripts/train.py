@@ -59,10 +59,11 @@ def prepare_data(df):
 
 
 def load_sample(spark, path, fraction, cols):
-    df = prepare_data(
-        spark.read.parquet(path).select(*cols).sample(fraction=fraction, seed=62)
-    )
-    return df.cache()
+    df = spark.read.parquet(path).select(*cols).sample(withReplacement=False, fraction=fraction, seed=62)
+    df = prepare_data(df).cache()
+    row_count = df.count()
+    print(f"Loaded {row_count} rows (fraction={fraction})")
+    return df
 
 
 def run_single_training(spark, args, stage_metrics):
