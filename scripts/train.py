@@ -23,7 +23,6 @@ def parse_args():
     parser.add_argument("--sample-fraction", type=float, default=0.1)
     parser.add_argument("--output-file", default="results.json")
     parser.add_argument("--profile", action="store_true", help="Run with profiling configs")
-    parser.add_argument("--reuse-spark-session", action="store_true", help="Reuse Spark session in profiling (requires fixed max executors)")
     return parser.parse_args()
 
 
@@ -95,17 +94,14 @@ def load_sample(spark, path, fraction, cols):
     
     if fraction <= 1.0:
         num_files = max(1, int(len(file_list) * fraction))
-        print(f"Sampling {num_files}/{len(file_list)} files (fraction={fraction})")
     else:
         num_files = min(int(fraction), len(file_list))
-        print(f"Sampling {num_files}/{len(file_list)} files (count={int(fraction)})")
     
     sampled_files = random.sample(file_list, num_files)
     df = spark.read.parquet(*sampled_files).select(*cols)
     
     df = prepare_data(df).cache()
     row_count = df.count()
-    print(f"Loaded {row_count} rows")
     
     if row_count == 0:
         raise ValueError(f"No data loaded from {path}. Check data path and fraction.")
@@ -122,8 +118,6 @@ def run_single_training(spark, args, stage_metrics):
     train = load_sample(spark, f"{args.data_path}/train/", args.sample_fraction, cols)
     val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
     test = load_sample(spark, f"{args.data_path}/test/", args.sample_fraction, cols)
-    
-    print(f"Dataset sizes - Train: {train.count()}, Val: {val.count()}, Test: {test.count()}")
 
     z_assembler = VectorAssembler(inputCols=["z_raw"], outputCol="z_vec", handleInvalid="skip")
     z_scaler = StandardScaler(inputCol="z_vec", outputCol="z", withMean=False, withStd=True)
@@ -181,11 +175,6 @@ def run_single_training(spark, args, stage_metrics):
     
     stage_metrics.end()
     total_time = time.time() - start_time
-    
-    print(f"Best Params: {best_params}")
-    print(f"Validation Accuracy: {val_accuracy:.4f}")
-    print(f"Test Accuracy: {test_accuracy:.4f}")
-    print(f"Total Time: {total_time:.2f}s")
 
     return {
         "best_params": best_params,
@@ -215,46 +204,33 @@ def main():
         ]
         
         all_results = []
-        spark = None
         
-        if args.reuse_spark_session:
-            max_executors = max(c[0] for c in configs)
-            print(f"Creating single Spark session with max_executors={max_executors}")
-            spark = create_spark_session(args, max_executors=max_executors)
-        
-        try:
-            for num_exec, frac in configs:
-                print(f"\n{'='*60}")
-                print(f"Running: {num_exec} executors, {frac*100}% data")
-                print(f"{'='*60}")
+        for num_exec, frac in configs:
+            print(f"Running config {len(all_results)+1}/{len(configs)}: executors={num_exec}, fraction={frac}")
 
-                args.num_executors = num_exec
-                args.sample_fraction = frac
-                
-                if not args.reuse_spark_session:
-                    spark = create_spark_session(args)
-                
-                stage_metrics = StageMetrics(spark)
-                
-                try:
-                    result = run_single_training(spark, args, stage_metrics)
-                    all_results.append(result)
-                except Exception as e:
-                    print(f"Error in run: {e}")
-                    import gc
-                    gc.collect()
-                finally:
-                    if not args.reuse_spark_session and spark:
-                        spark.stop()
-                        spark = None
-        finally:
-            if spark:
+            args.num_executors = num_exec
+            args.sample_fraction = frac
+            
+            spark = create_spark_session(args)
+            stage_metrics = StageMetrics(spark)
+            
+            try:
+                result = run_single_training(spark, args, stage_metrics)
+                all_results.append(result)
+            except Exception as e:
+                print(f"Error: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
                 spark.stop()
+                import gc
+                gc.collect()
         
         with open(args.output_file, "w") as f:
             json.dump(all_results, f, indent=2)
         
-        print(f"\nProfiling complete. Results saved to {args.output_file}")
+        print(f"Profiling complete: {len(all_results)}/{len(configs)} successful")
+        print(f"Results saved to {args.output_file}")
     else:
         spark = create_spark_session(args)
         stage_metrics = StageMetrics(spark)
@@ -264,7 +240,7 @@ def main():
         with open(args.output_file, "w") as f:
             json.dump(result, f, indent=2)
         
-        print(f"\nResults saved to {args.output_file}")
+        print(f"Results saved to {args.output_file}")
         spark.stop()
 
 
