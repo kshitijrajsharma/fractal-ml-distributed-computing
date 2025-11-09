@@ -1,5 +1,6 @@
 import argparse
 import json
+import time
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
@@ -7,6 +8,7 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.feature import StandardScaler, VectorAssembler
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, when
+from sparkmeasure import StageMetrics
 
 
 def parse_args():
@@ -18,6 +20,7 @@ def parse_args():
     parser.add_argument("--data-path", default="/opt/spark/work-dir/data/FRACTAL")
     parser.add_argument("--sample-fraction", type=float, default=0.2)
     parser.add_argument("--output-file", default="results.json")
+    parser.add_argument("--profile", action="store_true", help="Run with profiling configs")
     return parser.parse_args()
 
 
@@ -61,11 +64,11 @@ def load_sample(spark, path, fraction, cols):
     )
 
 
-def main():
-    args = parse_args()
-    spark = create_spark_session(args)
-
+def run_single_training(spark, args, stage_metrics):
     cols = ["xyz", "Intensity", "Classification", "Red", "Green", "Blue", "Infrared"]
+
+    stage_metrics.begin()
+    start_time = time.time()
 
     train = load_sample(spark, f"{args.data_path}/train/", args.sample_fraction, cols)
     val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
@@ -119,20 +122,72 @@ def main():
     best_model = Pipeline(stages=[z_assembler, z_scaler, assembler, rf]).fit(train)
 
     test_accuracy = evaluator.evaluate(best_model.transform(test))
-    print(f"Test Accuracy: {test_accuracy:.4f}")
+    
+    stage_metrics.end()
+    total_time = time.time() - start_time
 
-    results = {
+    metrics = stage_metrics.aggregate_stage_metrics()
+    
+    print(f"Test Accuracy: {test_accuracy:.4f}")
+    print(f"Total Time: {total_time:.2f}s")
+
+    return {
         "best_params": best_params,
         "validation_accuracy": best_accuracy,
         "test_accuracy": test_accuracy,
+        "total_time_sec": round(total_time, 2),
+        "spark_metrics": metrics,
+        "num_executors": args.num_executors,
+        "sample_fraction": args.sample_fraction,
+        "executor_memory": args.executor_memory,
     }
 
-    with open(args.output_file, "w") as f:
-        json.dump(results, f, indent=2)
 
-    print(f"\nResults saved to {args.output_file}")
+def main():
+    args = parse_args()
+    
+    if args.profile:
+        from pathlib import Path
+        Path(args.output_file).parent.mkdir(parents=True, exist_ok=True)
+        
+        configs = [
+            (2, 0.01), (2, 0.1), (2, 0.5),
+            (4, 0.01), (4, 0.1), (4, 0.5),
+            (8, 0.01), (8, 0.1), (8, 0.5),
+        ]
+        
+        all_results = []
+        
+        for num_exec, frac in configs:
+            print(f"Running: {num_exec} executors, {frac*100}% data")
 
-    spark.stop()
+            args.num_executors = num_exec
+            args.sample_fraction = frac
+            
+            spark = create_spark_session(args)
+            stage_metrics = StageMetrics(spark)
+            
+            result = run_single_training(spark, args, stage_metrics)
+            all_results.append(result)
+            
+            spark.stop()
+        
+        with open(args.output_file, "w") as f:
+            json.dump(all_results, f, indent=2)
+        
+        print(f"Profiling complete. Results saved to {args.output_file}")
+
+    else:
+        spark = create_spark_session(args)
+        stage_metrics = StageMetrics(spark)
+        
+        result = run_single_training(spark, args, stage_metrics)
+        
+        with open(args.output_file, "w") as f:
+            json.dump(result, f, indent=2)
+        
+        print(f"\nResults saved to {args.output_file}")
+        spark.stop()
 
 
 if __name__ == "__main__":
