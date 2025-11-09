@@ -40,7 +40,7 @@ def create_spark_session(args):
         .config("spark.dynamicAllocation.minExecutors", "1")
         .config("spark.dynamicAllocation.maxExecutors", str(args.num_executors))
         .config("spark.dynamicAllocation.initialExecutors", str(args.num_executors))
-        .config("spark.shuffle.service.enabled", "true")
+        # .config("spark.shuffle.service.enabled", "true")
         .config("spark.eventLog.enabled", "true")
         .config("spark.eventLog.dir", "/opt/spark/spark-events")
         .getOrCreate()
