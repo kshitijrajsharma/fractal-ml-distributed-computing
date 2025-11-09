@@ -3,7 +3,7 @@
 Local :
 
 ```bash
-docker exec spark-master spark-submit scripts/train.py --master spark://spark-master:7077 --sample-fraction 0.01 --executor-memory 2g --num-executors 2
+docker exec spark-master spark-submit scripts/train.py --master spark://spark-master:7077 --sample-fraction 0.01 --executor-memory 8g --num-executors 4
 ```
 
 or run it with profiler option on (it will run training with different configs set and produce the report ) :
