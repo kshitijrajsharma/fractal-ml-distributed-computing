@@ -40,6 +40,7 @@ def create_spark_session(args):
         .config("spark.dynamicAllocation.minExecutors", "1")
         .config("spark.dynamicAllocation.maxExecutors", str(args.num_executors))
         .config("spark.dynamicAllocation.initialExecutors", str(args.num_executors))
+        .config("spark.shuffle.service.enabled", "true")
         .config("spark.eventLog.enabled", "true")
         .config("spark.eventLog.dir", "/opt/spark/spark-events")
         .getOrCreate()
@@ -59,7 +60,7 @@ def prepare_data(df):
 
 def load_sample(spark, path, fraction, cols):
     df = prepare_data(
-        spark.read.parquet(path).select(*cols).sample(fraction=fraction, seed=42)
+        spark.read.parquet(path).select(*cols).sample(fraction=fraction, seed=62)
     )
     return df.cache()
 
@@ -85,7 +86,7 @@ def run_single_training(spark, args, stage_metrics):
         outputCol="features",
     )
     
-    rf = RandomForestClassifier(labelCol="label", featuresCol="features", seed=42)
+    rf = RandomForestClassifier(labelCol="label", featuresCol="features", seed=62)
     
     pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
 
@@ -104,7 +105,7 @@ def run_single_training(spark, args, stage_metrics):
         evaluator=evaluator,
         numFolds=3,
         parallelism=args.num_executors,
-        seed=64
+        seed=62
     )
 
     cv_model = cv.fit(train)
