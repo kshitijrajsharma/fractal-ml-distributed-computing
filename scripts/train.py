@@ -138,8 +138,8 @@ def run_single_training(spark, args, stage_metrics):
     pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
 
     paramGrid = ParamGridBuilder() \
-        .addGrid(rf.numTrees, [50, 100]) \
-        .addGrid(rf.maxDepth, [10, 15]) \
+        .addGrid(rf.numTrees, [50, 100, 150]) \
+        .addGrid(rf.maxDepth, [10, 20, 30]) \
         .build()
 
     evaluator = MulticlassClassificationEvaluator(
@@ -192,7 +192,7 @@ def run_single_training(spark, args, stage_metrics):
         "validation_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
         "total_time_sec": round(total_time, 2),
-        "spark_metrics": stage_metrics.aggregate_stagemetrics(),
+        "spark_metrics": json.dumps(stage_metrics.aggregate_stagemetrics()),
         "num_executors": args.num_executors,
         "executor_cores": args.executor_cores,
         "total_cores": args.num_executors * args.executor_cores,
