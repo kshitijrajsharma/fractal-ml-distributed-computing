@@ -6,6 +6,7 @@ from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.feature import StandardScaler, VectorAssembler
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, when
 from sparkmeasure import StageMetrics
@@ -31,16 +32,14 @@ def create_spark_session(args):
         builder = builder.master(args.master)
 
     return (
-        builder.config(
-            "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
-        )
-        .config(
-            "spark.hadoop.fs.s3a.aws.credentials.provider",
-            "com.amazonaws.auth.DefaultAWSCredentialsProviderChain",
-        )
+        builder.config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain")
         .config("spark.executor.memory", args.executor_memory)
         .config("spark.driver.memory", args.driver_memory)
-        .config("spark.executor.instances", str(args.num_executors))
+        .config("spark.dynamicAllocation.enabled", "true")
+        .config("spark.dynamicAllocation.minExecutors", "1")
+        .config("spark.dynamicAllocation.maxExecutors", str(args.num_executors))
+        .config("spark.dynamicAllocation.initialExecutors", str(args.num_executors))
         .config("spark.eventLog.enabled", "true")
         .config("spark.eventLog.dir", "/opt/spark/spark-events")
         .getOrCreate()
@@ -59,9 +58,10 @@ def prepare_data(df):
 
 
 def load_sample(spark, path, fraction, cols):
-    return prepare_data(
+    df = prepare_data(
         spark.read.parquet(path).select(*cols).sample(fraction=fraction, seed=42)
     )
+    return df.cache()
 
 
 def run_single_training(spark, args, stage_metrics):
@@ -73,68 +73,69 @@ def run_single_training(spark, args, stage_metrics):
     train = load_sample(spark, f"{args.data_path}/train/", args.sample_fraction, cols)
     val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
     test = load_sample(spark, f"{args.data_path}/test/", args.sample_fraction, cols)
+    
+    train.count()
+    val.count()
+    test.count()
 
     z_assembler = VectorAssembler(inputCols=["z_raw"], outputCol="z_vec")
-    z_scaler = StandardScaler(inputCol="z_vec", outputCol="z", withMean=True, withStd=True)
+    z_scaler = StandardScaler(inputCol="z_vec", outputCol="z", withMean=False, withStd=True)
     assembler = VectorAssembler(
         inputCols=["z", "Intensity", "Red", "Green", "Blue", "Infrared", "ndvi"],
         outputCol="features",
     )
+    
+    rf = RandomForestClassifier(labelCol="label", featuresCol="features", seed=42)
+    
+    pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
+
+    paramGrid = ParamGridBuilder() \
+        .addGrid(rf.numTrees, [50, 100, 200]) \
+        .addGrid(rf.maxDepth, [10, 15, 20]) \
+        .build()
 
     evaluator = MulticlassClassificationEvaluator(
         labelCol="label", predictionCol="prediction", metricName="accuracy"
     )
-
-    best_accuracy = 0
-    best_params = {}
-
-    for num_trees in [50, 100, 200]:
-        for max_depth in [10, 15, 20]:
-            rf = RandomForestClassifier(
-                labelCol="label",
-                featuresCol="features",
-                numTrees=num_trees,
-                maxDepth=max_depth,
-                seed=42,
-            )
-
-            pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
-            model = pipeline.fit(val)
-            accuracy = evaluator.evaluate(model.transform(val))
-
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
-                best_params = {
-                    "numTrees": num_trees,
-                    "maxDepth": max_depth,
-                }
-                print(f"New best: {best_params} -> Accuracy: {accuracy:.4f}")
-
-    print(f"\nBest Params: {best_params}")
-
-    rf = RandomForestClassifier(
-        labelCol="label",
-        featuresCol="features",
-        numTrees=best_params["numTrees"],
-        maxDepth=best_params["maxDepth"],
-        seed=42,
+    
+    cv = CrossValidator(
+        estimator=pipeline,
+        estimatorParamMaps=paramGrid,
+        evaluator=evaluator,
+        numFolds=3,
+        parallelism=args.num_executors,
+        seed=64
     )
-    best_model = Pipeline(stages=[z_assembler, z_scaler, assembler, rf]).fit(train)
 
-    test_accuracy = evaluator.evaluate(best_model.transform(test))
+    cv_model = cv.fit(train)
+    
+    best_model = cv_model.bestModel
+    best_params = {
+        "numTrees": best_model.stages[-1].getNumTrees,
+        "maxDepth": best_model.stages[-1].getMaxDepth(),
+    }
+    
+    val_accuracy = evaluator.evaluate(cv_model.transform(val))
+    test_accuracy = evaluator.evaluate(cv_model.transform(test))
+    
+    train.unpersist()
+    val.unpersist()
+    test.unpersist()
     
     stage_metrics.end()
     total_time = time.time() - start_time
 
     metrics = stage_metrics.aggregate_stage_metrics()
     
+    print(f"Best Params: {best_params}")
+    print(f"Validation Accuracy: {val_accuracy:.4f}")
     print(f"Test Accuracy: {test_accuracy:.4f}")
     print(f"Total Time: {total_time:.2f}s")
 
     return {
         "best_params": best_params,
-        "validation_accuracy": best_accuracy,
-        "test_accuracy": test_accuracy,
+        "validation_accuracy": round(val_accuracy, 4),
+        "test_accuracy": round(test_accuracy, 4),
         "total_time_sec": round(total_time, 2),
         "spark_metrics": metrics,
         "num_executors": args.num_executors,
@@ -150,6 +151,8 @@ def main():
         from pathlib import Path
         Path(args.output_file).parent.mkdir(parents=True, exist_ok=True)
         
+        spark = create_spark_session(args)
+        
         configs = [
             (2, 0.01), (2, 0.1), (2, 0.5),
             (4, 0.01), (4, 0.1), (4, 0.5),
@@ -164,19 +167,19 @@ def main():
             args.num_executors = num_exec
             args.sample_fraction = frac
             
-            spark = create_spark_session(args)
-            stage_metrics = StageMetrics(spark)
+            spark.conf.set("spark.dynamicAllocation.maxExecutors", str(num_exec))
+            spark.conf.set("spark.dynamicAllocation.initialExecutors", str(num_exec))
             
+            stage_metrics = StageMetrics(spark)
             result = run_single_training(spark, args, stage_metrics)
             all_results.append(result)
-            
-            spark.stop()
+        
+        spark.stop()
         
         with open(args.output_file, "w") as f:
             json.dump(all_results, f, indent=2)
         
-        print(f"Profiling complete. Results saved to {args.output_file}")
-
+        print(f"\nProfiling complete. Results saved to {args.output_file}")
     else:
         spark = create_spark_session(args)
         stage_metrics = StageMetrics(spark)
