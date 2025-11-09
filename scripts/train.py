@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument("--driver-memory", default="2g")
     parser.add_argument("--num-executors", type=int, default=2)
     parser.add_argument("--data-path", default="/opt/spark/work-dir/data/FRACTAL")
-    parser.add_argument("--sample-fraction", type=float, default=0.2)
+    parser.add_argument("--sample-fraction", type=float, default=0.1)
     parser.add_argument("--output-file", default="results.json")
     parser.add_argument("--profile", action="store_true", help="Run with profiling configs")
     return parser.parse_args()
