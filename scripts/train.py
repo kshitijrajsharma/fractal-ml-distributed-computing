@@ -16,9 +16,13 @@ from pyspark.sql.functions import col, when
 logger = logging.getLogger(__name__)
 
 
+def get_experiment_name(args):
+    return args.experiment_name or f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
+
+
 def setup_logging(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_name = args.experiment_name or f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
+    log_name = get_experiment_name(args)
     log_file = Path(args.event_log_dir) / f"{log_name}_{timestamp}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     
@@ -49,7 +53,7 @@ def parse_args():
     parser.add_argument("-x", "--num-executors", type=int, default=2, help="Number of executors")
     parser.add_argument("-p", "--data", dest="data_path", default="/opt/spark/work-dir/data/FRACTAL", help="Data path")
     parser.add_argument("-f", "--fraction", dest="sample_fraction", type=float, default=0.1, help="Sample fraction")
-    parser.add_argument("-o", "--output", dest="output_file", default="results.json", help="Output file")
+    parser.add_argument("-o", "--output", dest="output_path", default="results", help="Output directory path")
     parser.add_argument(
         "--profile", action="store_true", help="Run with profiling configs"
     )
@@ -67,10 +71,7 @@ def parse_args():
 
 
 def create_spark_session(args):
-    if args.experiment_name:
-        app_name = args.experiment_name
-    else:
-        app_name = f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
+    app_name = get_experiment_name(args)
     
     logger.info(f"Creating Spark session: {app_name}")
     builder = SparkSession.builder.appName(app_name)
@@ -248,10 +249,11 @@ def main():
     setup_logging(args)
 
     if args.profile:
-        from pathlib import Path
-
         logger.info("Starting profiling mode")
-        Path(args.output_file).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.output_path).mkdir(parents=True, exist_ok=True)
+        
+        experiment_name = get_experiment_name(args)
+        output_file = Path(args.output_path) / f"{experiment_name}.json"
 
         configs = [
             (2, 0.01),
@@ -285,7 +287,7 @@ def main():
                 result = run_single_training(spark, args, stage_metrics)
                 all_results.append(result)
                 
-                with open(args.output_file, "w") as f:
+                with open(output_file, "w") as f:
                     json.dump(all_results, f, indent=2)
                 logger.info(f"Results saved after step {idx}/{len(configs)}")
             except Exception as e:
@@ -301,7 +303,7 @@ def main():
                 gc.collect()
 
         logger.info(f"Profiling complete: {len(all_results)}/{len(configs)} successful")
-        logger.info(f"Final results saved to {args.output_file}")
+        logger.info(f"Final results saved to {output_file}")
     else:
         logger.info("Starting single training run")
         spark = create_spark_session(args)
@@ -314,10 +316,14 @@ def main():
 
         result = run_single_training(spark, args, stage_metrics)
 
-        with open(args.output_file, "w") as f:
+        Path(args.output_path).mkdir(parents=True, exist_ok=True)
+        experiment_name = get_experiment_name(args)
+        output_file = Path(args.output_path) / f"{experiment_name}.json"
+        
+        with open(output_file, "w") as f:
             json.dump(result, f, indent=2)
 
-        logger.info(f"Results saved to {args.output_file}")
+        logger.info(f"Results saved to {output_file}")
         spark.stop()
         logger.info("Spark session stopped")
 
