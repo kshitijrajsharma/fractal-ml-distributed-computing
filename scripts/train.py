@@ -9,7 +9,6 @@ from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.feature import StandardScaler, VectorAssembler
-from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, when
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def setup_logging(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_name = args.experiment_name or f"fractal-cv-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
+    log_name = args.experiment_name or f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
     log_file = Path(args.event_log_dir) / f"{log_name}_{timestamp}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     
@@ -65,7 +64,7 @@ def create_spark_session(args):
     if args.experiment_name:
         app_name = args.experiment_name
     else:
-        app_name = f"fractal-cv-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
+        app_name = f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
     
     logger.info(f"Creating Spark session: {app_name}")
     builder = SparkSession.builder.appName(app_name)
@@ -136,7 +135,6 @@ def load_sample(spark, path, fraction, cols):
 
 
 def run_single_training(spark, args, stage_metrics):
-    logger.info("Starting training run")
     cols = ["xyz", "Intensity", "Classification", "Red", "Green", "Blue", "Infrared"]
 
     if stage_metrics:
@@ -147,14 +145,12 @@ def run_single_training(spark, args, stage_metrics):
     train = load_sample(spark, f"{args.data_path}/train/", args.sample_fraction, cols)
     val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
     test = load_sample(spark, f"{args.data_path}/test/", args.sample_fraction, cols)
+    
+    train_count = train.count()
+    val_count = val.count()
+    test_count = test.count()
+    logger.info(f"Train: {train_count}, Val: {val_count}, Test: {test_count}")
 
-    logger.info("Combining train and validation sets for cross-validation")
-    train_val = train.union(val)
-    train_val.cache()
-    train_val_count = train_val.count()
-    logger.info(f"Combined train+val: {train_val_count} rows")
-
-    logger.info("Building ML pipeline")
     z_assembler = VectorAssembler(
         inputCols=["z_raw"], outputCol="z_vec", handleInvalid="skip"
     )
@@ -167,67 +163,58 @@ def run_single_training(spark, args, stage_metrics):
         handleInvalid="skip",
     )
 
-    rf = RandomForestClassifier(labelCol="label", featuresCol="features", seed=62)
+    rf = RandomForestClassifier(
+        labelCol="label",
+        featuresCol="features",
+        numTrees=100,
+        maxDepth=20,
+        seed=62
+    )
 
     pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
-
-    logger.info("Setting up parameter grid for cross-validation")
-    paramGrid = (
-        ParamGridBuilder()
-        .addGrid(rf.numTrees, [50, 150])
-        .addGrid(rf.maxDepth, [10, 30])
-        .build()
-    )
-    logger.info(f"Parameter grid size: {len(paramGrid)} combinations")
 
     evaluator = MulticlassClassificationEvaluator(
         labelCol="label", predictionCol="prediction", metricName="accuracy"
     )
 
-    total_cores = args.num_executors * args.executor_cores
+    logger.info("Training model")
+    train_start = time.time()
+    model = pipeline.fit(train)
+    train_time = time.time() - train_start
+    logger.info(f"Training completed: {train_time:.2f}s")
 
-    logger.info(f"Setting up CrossValidator with {total_cores} cores, parallelism={min(total_cores, len(paramGrid))}")
-    cv = CrossValidator(
-        estimator=pipeline,
-        estimatorParamMaps=paramGrid,
-        evaluator=evaluator,
-        numFolds=2,
-        parallelism=min(total_cores, len(paramGrid)),
-        seed=62,
-        collectSubModels=False,
-    )
+    val_predictions = model.transform(val)
+    val_accuracy = evaluator.evaluate(val_predictions)
+    logger.info(f"Validation accuracy: {val_accuracy:.4f}")
 
-    logger.info("Starting cross-validation on train+val set")
-    cv_model = cv.fit(train_val)
-    logger.info("Cross-validation completed, best model selected")
-
-    best_model = cv_model.bestModel
-    best_params = {
-        "numTrees": best_model.stages[-1].getNumTrees(),
-        "maxDepth": best_model.stages[-1].getMaxDepth(),
-    }
-    logger.info(f"Best hyperparameters: {best_params}")
-
-    logger.info("Final evaluation on test set")
-    test_predictions = best_model.transform(test)
+    test_predictions = model.transform(test)
     test_accuracy = evaluator.evaluate(test_predictions)
     logger.info(f"Test accuracy: {test_accuracy:.4f}")
 
-    logger.info("Cleaning up cached data")
     train.unpersist()
     val.unpersist()
-    train_val.unpersist()
     test.unpersist()
+    val_predictions.unpersist()
     test_predictions.unpersist()
 
     if stage_metrics:
         stage_metrics.end()
+    
     total_time = time.time() - start_time
-    logger.info(f"Training completed in {total_time:.2f} seconds")
+    logger.info(f"Total time: {total_time:.2f}s")
 
+    rf_model = model.stages[-1]
     result = {
-        "best_params": best_params,
+        "train_count": train_count,
+        "val_count": val_count,
+        "test_count": test_count,
+        "model_params": {
+            "numTrees": rf_model.getNumTrees(),
+            "maxDepth": rf_model.getMaxDepth(),
+        },
+        "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
+        "training_time_sec": round(train_time, 2),
         "total_time_sec": round(total_time, 2),
         "num_executors": args.num_executors,
         "executor_cores": args.executor_cores,
