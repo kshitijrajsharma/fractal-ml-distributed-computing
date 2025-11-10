@@ -186,11 +186,6 @@ def run_single_training(spark, args, stage_metrics):
         "total_time_sec": round(total_time, 2),
         "num_executors": args.num_executors,
         "executor_cores": args.executor_cores,
-        "total_cores": (
-            args.num_cores
-            if args.num_cores
-            else (args.num_executors * args.executor_cores)
-        ),
         "sample_fraction": args.sample_fraction,
         "executor_memory": args.executor_memory,
     }
