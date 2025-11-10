@@ -4,6 +4,7 @@ import logging
 import sys
 import time
 from datetime import datetime
+from itertools import product
 from pathlib import Path
 
 from pyspark.ml import Pipeline
@@ -102,7 +103,7 @@ def create_spark_session(args):
         logger.info("Stage metrics enabled")
 
     session = builder.getOrCreate()
-    logger.info("Spark session created successfully")
+    logger.info(f"Spark session created successfully : executors={args.num_executors}, cores={args.executor_cores}, memory={args.executor_memory}, fraction={args.sample_fraction}")
 
     return session
 
@@ -253,19 +254,11 @@ def main():
         Path(args.output_path).mkdir(parents=True, exist_ok=True)
         
         experiment_name = get_experiment_name(args)
-        output_file = Path(args.output_path) / f"{experiment_name}.json"
+        output_file = Path(args.output_path) / f"{experiment_name}_profile.json"
 
-        configs = [
-            (2, 0.01),
-            (2, 0.1),
-            (2, 0.5),
-            (4, 0.01),
-            (4, 0.1),
-            (4, 0.5),
-            (8, 0.01),
-            (8, 0.1),
-            (8, 0.5),
-        ]
+        num_executors_list = [1, 2, 4]
+        data_fractions = [0.01, 0.02, 0.03]
+        configs = list(product(num_executors_list, data_fractions))
 
         all_results = []
 
