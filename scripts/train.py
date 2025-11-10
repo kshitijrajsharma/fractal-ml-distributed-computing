@@ -37,13 +37,11 @@ def parse_args():
     return parser.parse_args()
 
 
-def create_spark_session(args, max_executors=None):
+def create_spark_session(args):
     builder = SparkSession.builder.appName("fractal-cv-rf")
 
     if args.master:
         builder = builder.master(args.master)
-
-    max_exec = max_executors if max_executors else args.num_executors
 
     builder = (
         builder.config(
@@ -56,18 +54,8 @@ def create_spark_session(args, max_executors=None):
         .config("spark.executor.memory", args.executor_memory)
         .config("spark.executor.cores", str(args.executor_cores))
         .config("spark.driver.memory", args.driver_memory)
+        .config("spark.executor.instances", str(args.num_executors))
         .config("spark.driver.maxResultSize", "4g")
-        .config("spark.kryoserializer.buffer.max", "512m")
-        .config("spark.rpc.message.maxSize", "512")
-        .config("spark.dynamicAllocation.enabled", "true")
-        .config("spark.dynamicAllocation.minExecutors", "1")
-        .config("spark.dynamicAllocation.maxExecutors", str(max_exec))
-        .config("spark.dynamicAllocation.initialExecutors", str(args.num_executors))
-        .config("spark.dynamicAllocation.executorIdleTimeout", "60s")
-        .config("spark.dynamicAllocation.shuffleTracking.enabled", "true")
-        .config("spark.sql.shuffle.partitions", "200")
-        .config("spark.executor.heartbeatInterval", "20s")
-        .config("spark.network.timeout", "300s")
     )
 
     if args.enable_stage_metrics:

@@ -3,7 +3,7 @@
 Local :
 
 ```bash
- sudo docker exec spark-master spark-submit scripts/train.py --master spark://spark-master:7077 --sample-fraction 2 --num-executors 4 --executor-memory 8g --executor-cores 4
+ sudo docker exec spark-master spark-submit scripts/train.py --data-path "s3a://ubs-datasets/FRACTAL/data" --sample-fraction 0.01 --num-executors 2 --executor-memory 4g --executor-cores 2 --driver-memory 4g
 ```
 
 or run it with profiler option on (it will run training with different configs set and produce the report ) :
