@@ -19,3 +19,10 @@ Server :
 
 spark-submit --master yarn train.py --data-path "s3a://ubs-datasets/FRACTAL/data/" --profile
 ```
+
+Manual code : 
+
+```bash
+
+spark-submit --deploy-mode cluster --master yarn train.py --data-path "s3a://ubs-datasets/FRACTAL/data" --executor-cores 2 --num-executors 16 --executor-memory 8g --driver-memory 8g
+```
