@@ -101,36 +101,48 @@ def create_spark_session(args):
 
 
 def prepare_data(df):
-    df = df.withColumn("z_raw", col("xyz")[2]).withColumn(
-        "ndvi",
-        when(
-            (col("Infrared") + col("Red")) != 0,
-            (col("Infrared") - col("Red")) / (col("Infrared") + col("Red")),
-        ).otherwise(0),
-    )
-    return df.select(
-        "z_raw",
-        "Intensity",
-        "Red",
-        "Green",
-        "Blue",
-        "Infrared",
-        "ndvi",
-        col("Classification").alias("label"),
-    )
+    return df.withColumn("z_raw", col("xyz")[2]) \
+        .withColumn(
+            "ndvi",
+            when(
+                (col("Infrared") + col("Red")) != 0,
+                (col("Infrared") - col("Red")) / (col("Infrared") + col("Red")),
+            ).otherwise(0),
+        ) \
+        .select(
+            "z_raw", "Intensity", "Red", "Green", "Blue", "Infrared", "ndvi",
+            col("Classification").alias("label"),
+        )
 
 
 def load_sample(spark, path, fraction, cols):
     logger.info(f"Loading data from {path} with fraction={fraction}")
-    df = spark.read.parquet(path).select(*cols).sample(fraction=fraction, seed=62)
-
-    df = prepare_data(df).cache()
+    
+    sc = spark.sparkContext
+    hadoop_conf = sc._jsc.hadoopConfiguration()
+    
+    uri = sc._jvm.java.net.URI(path)
+    fs = sc._jvm.org.apache.hadoop.fs.FileSystem.get(uri, hadoop_conf)
+    file_path = sc._jvm.org.apache.hadoop.fs.Path(path)
+    
+    all_files = [
+        str(f.getPath()) for f in fs.listStatus(file_path)
+        if str(f.getPath()).endswith(".parquet")
+    ]
+    
+    num_files = max(1, int(len(all_files) * fraction))
+    selected_files = sorted(all_files)[:num_files]
+    
+    logger.info(f"Loading {num_files}/{len(all_files)} files ({fraction*100:.1f}%)")
+    
+    df = spark.read.parquet(*selected_files).select(*cols)
+    df = prepare_data(df)
     row_count = df.count()
-
+    
     if row_count == 0:
         raise ValueError(f"No data loaded from {path}. Check data path and fraction.")
-
-    logger.info(f"Loaded {row_count} rows from {path}")
+    
+    logger.info(f"Loaded {row_count} rows")
     return df
 
 
