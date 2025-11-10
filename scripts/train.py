@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,11 @@ def setup_logging(args):
     log_name = args.experiment_name or f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
     log_file = Path(args.event_log_dir) / f"{log_name}_{timestamp}.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    command_line = ' '.join(sys.argv)
+    with open(log_file, 'w') as f:
+        f.write(f"Command: {command_line}\n")
+        f.write("=" * 60 + "\n\n")
     
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
@@ -220,10 +226,6 @@ def run_single_training(spark, args, stage_metrics):
         "train_count": train_count,
         "val_count": val_count,
         "test_count": test_count,
-        "model_params": {
-            "numTrees": rf_model.getNumTrees(),
-            "maxDepth": rf_model.getMaxDepth(),
-        },
         "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
         "training_time_sec": round(train_time, 2),
@@ -235,7 +237,8 @@ def run_single_training(spark, args, stage_metrics):
     }
 
     if stage_metrics:
-        result["spark_metrics"] = stage_metrics.aggregate_stagemetrics()
+        metrics = stage_metrics.aggregate_stagemetrics()
+        result["spark_metrics"] = dict(metrics) if metrics else {}
 
     return result
 
