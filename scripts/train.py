@@ -145,7 +145,14 @@ def run_single_training(spark, args, stage_metrics):
 
     logger.info("Loading datasets")
     train = load_sample(spark, f"{args.data_path}/train/", args.sample_fraction, cols)
+    val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
     test = load_sample(spark, f"{args.data_path}/test/", args.sample_fraction, cols)
+
+    logger.info("Combining train and validation sets for cross-validation")
+    train_val = train.union(val)
+    train_val.cache()
+    train_val_count = train_val.count()
+    logger.info(f"Combined train+val: {train_val_count} rows")
 
     logger.info("Building ML pipeline")
     z_assembler = VectorAssembler(
@@ -167,8 +174,8 @@ def run_single_training(spark, args, stage_metrics):
     logger.info("Setting up parameter grid for cross-validation")
     paramGrid = (
         ParamGridBuilder()
-        .addGrid(rf.numTrees, [50, 100, 150])
-        .addGrid(rf.maxDepth, [10, 20, 30])
+        .addGrid(rf.numTrees, [50, 150])
+        .addGrid(rf.maxDepth, [10, 30])
         .build()
     )
     logger.info(f"Parameter grid size: {len(paramGrid)} combinations")
@@ -179,7 +186,7 @@ def run_single_training(spark, args, stage_metrics):
 
     total_cores = args.num_executors * args.executor_cores
 
-    logger.info(f"Setting up CrossValidator with parallelism={min(total_cores, len(paramGrid))}")
+    logger.info(f"Setting up CrossValidator with {total_cores} cores, parallelism={min(total_cores, len(paramGrid))}")
     cv = CrossValidator(
         estimator=pipeline,
         estimatorParamMaps=paramGrid,
@@ -190,24 +197,26 @@ def run_single_training(spark, args, stage_metrics):
         collectSubModels=False,
     )
 
-    logger.info("Starting cross-validation training")
-    cv_model = cv.fit(train)
-    logger.info("Cross-validation training completed")
+    logger.info("Starting cross-validation on train+val set")
+    cv_model = cv.fit(train_val)
+    logger.info("Cross-validation completed, best model selected")
 
     best_model = cv_model.bestModel
     best_params = {
-        "numTrees": best_model.stages[-1].getNumTrees,
+        "numTrees": best_model.stages[-1].getNumTrees(),
         "maxDepth": best_model.stages[-1].getMaxDepth(),
     }
-    logger.info(f"Best params: {best_params}")
+    logger.info(f"Best hyperparameters: {best_params}")
 
-    logger.info("Evaluating on test set")
-    test_predictions = cv_model.transform(test)
+    logger.info("Final evaluation on test set")
+    test_predictions = best_model.transform(test)
     test_accuracy = evaluator.evaluate(test_predictions)
     logger.info(f"Test accuracy: {test_accuracy:.4f}")
 
     logger.info("Cleaning up cached data")
     train.unpersist()
+    val.unpersist()
+    train_val.unpersist()
     test.unpersist()
     test_predictions.unpersist()
 
