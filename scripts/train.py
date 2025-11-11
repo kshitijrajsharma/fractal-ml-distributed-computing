@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_experiment_name(args):
-    return args.experiment_name or f"fractal-rf-e{args.executor_memory}-x{args.num_executors}-f{args.sample_fraction}"
+    return args.experiment_name or f"fractal-rf-e{args.executor_memory}g-x{args.num_executors}-f{args.sample_fraction}"
 
 
 def setup_logging(args):
@@ -48,8 +48,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--experiment-name", default=None, help="Experiment name for Spark app")
     parser.add_argument("-m", "--master", default=None, help="Spark master URL")
-    parser.add_argument("-e", "--executor-memory", default="8g", help="Executor memory")
-    parser.add_argument("-d", "--driver-memory", default="8g", help="Driver memory")
+    parser.add_argument("-e", "--executor-memory", type=int, default=8, help="Executor memory in GB")
+    parser.add_argument("-d", "--driver-memory", type=int, default=8, help="Driver memory in GB")
     parser.add_argument("-c", "--executor-cores", type=int, default=2, help="Executor cores")
     parser.add_argument("-x", "--num-executors", type=int, default=2, help="Number of executors")
     parser.add_argument("-p", "--data", dest="data_path", default="/opt/spark/work-dir/data/FRACTAL", help="Data path")
@@ -81,6 +81,9 @@ def create_spark_session(args):
         builder = builder.master(args.master)
         logger.info(f"Spark master: {args.master}")
 
+    executor_memory = f"{args.executor_memory}g"
+    driver_memory = f"{args.driver_memory}g"
+
     builder = (
         builder.config(
             "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
@@ -89,11 +92,11 @@ def create_spark_session(args):
             "spark.hadoop.fs.s3a.aws.credentials.provider",
             "com.amazonaws.auth.DefaultAWSCredentialsProviderChain",
         )
-        .config("spark.executor.memory", args.executor_memory)
+        .config("spark.executor.memory", executor_memory)
         .config("spark.executor.cores", str(args.executor_cores))
-        .config("spark.driver.memory", args.driver_memory)
+        .config("spark.driver.memory", driver_memory)
         .config("spark.executor.instances", str(args.num_executors))
-        .config("spark.driver.maxResultSize", "4g")
+        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") # memory efficient serializer
     )
 
     if args.enable_stage_metrics:
@@ -103,7 +106,7 @@ def create_spark_session(args):
         logger.info("Stage metrics enabled")
 
     session = builder.getOrCreate()
-    logger.info(f"Spark session created successfully : executors={args.num_executors}, cores={args.executor_cores}, memory={args.executor_memory}, fraction={args.sample_fraction}")
+    logger.info(f"Spark session created successfully : executors={args.num_executors}, cores={args.executor_cores}, memory={executor_memory}, fraction={args.sample_fraction}")
 
     return session
 
@@ -169,7 +172,8 @@ def run_single_training(spark, args, stage_metrics):
     train_count = train.count()
     val_count = val.count()
     test_count = test.count()
-    logger.info(f"Train: {train_count}, Val: {val_count}, Test: {test_count}")
+    num_partitions = train.rdd.getNumPartitions()
+    logger.info(f"Train: {train_count}, Val: {val_count}, Test: {test_count}, Partitions: {num_partitions}")
 
     z_assembler = VectorAssembler(
         inputCols=["z_raw"], outputCol="z_vec", handleInvalid="skip"
@@ -182,7 +186,7 @@ def run_single_training(spark, args, stage_metrics):
         outputCol="features",
         handleInvalid="skip",
     )
-
+    # here param should come from the val set tuning , doing it manually for now 
     rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
@@ -211,12 +215,6 @@ def run_single_training(spark, args, stage_metrics):
     test_accuracy = evaluator.evaluate(test_predictions)
     logger.info(f"Test accuracy: {test_accuracy:.4f}")
 
-    train.unpersist()
-    val.unpersist()
-    test.unpersist()
-    val_predictions.unpersist()
-    test_predictions.unpersist()
-
     if stage_metrics:
         stage_metrics.end()
     
@@ -228,6 +226,7 @@ def run_single_training(spark, args, stage_metrics):
         "train_count": train_count,
         "val_count": val_count,
         "test_count": test_count,
+        "num_partitions": num_partitions,
         "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
         "training_time_sec": round(train_time, 2),
