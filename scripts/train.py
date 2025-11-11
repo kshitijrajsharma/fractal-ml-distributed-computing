@@ -196,8 +196,8 @@ def run_single_training(spark, args, stage_metrics):
     rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
-        numTrees=100,
-        maxDepth=20,
+        numTrees=30,
+        maxDepth=6,
         seed=62
     )
 
