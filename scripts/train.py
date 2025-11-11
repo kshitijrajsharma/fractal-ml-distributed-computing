@@ -96,7 +96,7 @@ def create_spark_session(args):
         .config("spark.sql.shuffle.partitions", str((args.executor_cores * args.num_executors)* 4)) # rule of thumb : 2-4 partitions per core
         .config("spark.sql.files.maxPartitionBytes", "268435456")  # 256MB # intiial partition size
         .config("spark.sql.adaptive.enabled", "true") # let spark optimize the shuffle partitions
-        .config("spark.sql.adaptive.advisoryPartitionSizeInBytes", "134217728")  # 128MB
+        .config("spark.sql.adaptive.advisoryPartitionSizeInBytes", "134217728")  # 128MB # source : https://spark.apache.org/docs/latest/sql-performance-tuning.html
     
         
     )
