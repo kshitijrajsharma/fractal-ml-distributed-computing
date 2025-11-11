@@ -1,12 +1,12 @@
 #!/bin/bash
 
 NUM_EXECUTORS_LIST=(1 2 4)
-DATA_FRACTIONS=(0.01 0.02 0.03)
+DATA_FRACTIONS=(0.01 0.05 0.1)
 
 for num_exec in "${NUM_EXECUTORS_LIST[@]}"; do
     for frac in "${DATA_FRACTIONS[@]}"; do
         echo "Running config: executors=${num_exec}, fraction=${frac}"
-        python scripts/train.py -x ${num_exec} -f ${frac} --enable-stage-metrics
+        sudo docker exec spark-master spark-submit scripts/train.py --master spark://spark-master:7077 --data /opt/spark/work-dir/data/FRACTAL  --num-executors ${num_exec} --fraction ${frac} --executor-cores 2  --executor-memory 7 --driver-memory 1 --enable-stage-metrics --output /opt/spark/work-dir/results
         echo "Completed config: executors=${num_exec}, fraction=${frac}"
         echo "---"
     done

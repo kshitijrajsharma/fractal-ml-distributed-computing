@@ -12,3 +12,17 @@ Local :
 ```bash
 sudo docker exec spark-master spark-submit scripts/train.py  --master spark://spark-master:7077 --data "/opt/spark/work-dir/data/FRACTAL" --executor-cores 3 --num-executors 4 --executor-memory 7 --driver-memory 8 --fraction 0.0000001 --enable-stage-metrics --output "/opt/spark/work-dir/results"
 ```
+
+Use Profile :
+
+make script executable
+
+```bash
+sudo chmod +x profile.sh
+```
+
+execute
+
+```bash
+sudo bash profile.sh
+```
