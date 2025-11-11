@@ -4,7 +4,6 @@ import logging
 import sys
 import time
 from datetime import datetime
-from itertools import product
 from pathlib import Path
 
 from pyspark.ml import Pipeline
@@ -55,9 +54,6 @@ def parse_args():
     parser.add_argument("-p", "--data", dest="data_path", default="/opt/spark/work-dir/data/FRACTAL", help="Data path")
     parser.add_argument("-f", "--fraction", dest="sample_fraction", type=float, default=0.1, help="Sample fraction")
     parser.add_argument("-o", "--output", dest="output_path", default="results", help="Output directory path")
-    parser.add_argument(
-        "--profile", action="store_true", help="Run with profiling configs"
-    )
     parser.add_argument(
         "--enable-stage-metrics",
         action="store_true",
@@ -254,76 +250,27 @@ def main():
     args = parse_args()
     setup_logging(args)
 
-    if args.profile:
-        logger.info("Starting profiling mode")
-        Path(args.output_path).mkdir(parents=True, exist_ok=True)
-        
-        experiment_name = get_experiment_name(args)
-        output_file = Path(args.output_path) / f"{experiment_name}_profile.json"
+    logger.info("Starting single training run")
+    spark = create_spark_session(args)
 
-        num_executors_list = [1, 2, 4]
-        data_fractions = [0.01, 0.02, 0.03]
-        configs = list(product(num_executors_list, data_fractions))
+    stage_metrics = None
+    if args.enable_stage_metrics:
+        from sparkmeasure import StageMetrics
 
-        all_results = []
+        stage_metrics = StageMetrics(spark)
 
-        for idx, (num_exec, frac) in enumerate(configs, 1):
-            logger.info(f"Config {idx}/{len(configs)}: executors={num_exec}, fraction={frac}")
+    result = run_single_training(spark, args, stage_metrics)
 
-            args.num_executors = num_exec
-            args.sample_fraction = frac
+    Path(args.output_path).mkdir(parents=True, exist_ok=True)
+    experiment_name = get_experiment_name(args)
+    output_file = Path(args.output_path) / f"{experiment_name}.json"
+    
+    with open(output_file, "w") as f:
+        json.dump(result, f, indent=2)
 
-            spark = create_spark_session(args)
-
-            stage_metrics = None
-            if args.enable_stage_metrics:
-                from sparkmeasure import StageMetrics
-
-                stage_metrics = StageMetrics(spark)
-
-            try:
-                result = run_single_training(spark, args, stage_metrics)
-                all_results.append(result)
-                
-                with open(output_file, "w") as f:
-                    json.dump(all_results, f, indent=2)
-                logger.info(f"Results saved after step {idx}/{len(configs)}")
-            except Exception as e:
-                logger.error(f"Error in config {idx}: {e}")
-                import traceback
-
-                traceback.print_exc()
-            finally:
-                spark.stop()
-                logger.info("Spark session stopped")
-                import gc
-
-                gc.collect()
-
-        logger.info(f"Profiling complete: {len(all_results)}/{len(configs)} successful")
-        logger.info(f"Final results saved to {output_file}")
-    else:
-        logger.info("Starting single training run")
-        spark = create_spark_session(args)
-
-        stage_metrics = None
-        if args.enable_stage_metrics:
-            from sparkmeasure import StageMetrics
-
-            stage_metrics = StageMetrics(spark)
-
-        result = run_single_training(spark, args, stage_metrics)
-
-        Path(args.output_path).mkdir(parents=True, exist_ok=True)
-        experiment_name = get_experiment_name(args)
-        output_file = Path(args.output_path) / f"{experiment_name}.json"
-        
-        with open(output_file, "w") as f:
-            json.dump(result, f, indent=2)
-
-        logger.info(f"Results saved to {output_file}")
-        spark.stop()
-        logger.info("Spark session stopped")
+    logger.info(f"Results saved to {output_file}")
+    spark.stop()
+    logger.info("Spark session stopped")
 
 
 if __name__ == "__main__":
