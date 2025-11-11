@@ -81,9 +81,6 @@ def create_spark_session(args):
         builder = builder.master(args.master)
         logger.info(f"Spark master: {args.master}")
 
-    executor_memory = f"{args.executor_memory}g"
-    driver_memory = f"{args.driver_memory}g"
-
     builder = (
         builder.config(
             "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
@@ -92,9 +89,10 @@ def create_spark_session(args):
             "spark.hadoop.fs.s3a.aws.credentials.provider",
             "com.amazonaws.auth.DefaultAWSCredentialsProviderChain",
         )
-        .config("spark.executor.memory", executor_memory)
+        .config("spark.executor.memory", f"{args.executor_memory}g")
         .config("spark.executor.cores", str(args.executor_cores))
-        .config("spark.driver.memory", driver_memory)
+        .config("spark.driver.memory", f"{args.driver_memory}g")
+        .config("spark.driver.maxResultSize", f"{max(args.driver_memory - 2, 4)}g") # i am leaving 2gb memory for the driver to use in general 
         .config("spark.executor.instances", str(args.num_executors))
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") # memory efficient serializer source : https://www.javaspring.net/blog/java-lang-outofmemoryerror-java-heap-space-spark/ 
     )
@@ -106,7 +104,7 @@ def create_spark_session(args):
         logger.info("Stage metrics enabled")
 
     session = builder.getOrCreate()
-    logger.info(f"Spark session created successfully : executors={args.num_executors}, cores={args.executor_cores}, memory={executor_memory}, fraction={args.sample_fraction}")
+    logger.info(f"Spark session created successfully : executors={args.num_executors}, cores={args.executor_cores}, memory={args.executor_memory}g, fraction={args.sample_fraction}")
 
     return session
 
