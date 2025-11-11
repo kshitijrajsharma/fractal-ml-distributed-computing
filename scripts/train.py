@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument("-n", "--experiment-name", default=None, help="Experiment name for Spark app")
     parser.add_argument("-m", "--master", default=None, help="Spark master URL")
     parser.add_argument("-e", "--executor-memory", type=int, default=8, help="Executor memory in GB")
-    parser.add_argument("-d", "--driver-memory", type=int, default=8, help="Driver memory in GB")
+    parser.add_argument("-d", "--driver-memory", type=int, default=2, help="Driver memory in GB")
     parser.add_argument("-c", "--executor-cores", type=int, default=2, help="Executor cores")
     parser.add_argument("-x", "--num-executors", type=int, default=2, help="Number of executors")
     parser.add_argument("-p", "--data", dest="data_path", default="/opt/spark/work-dir/data/FRACTAL", help="Data path")
@@ -92,9 +92,17 @@ def create_spark_session(args):
         .config("spark.executor.memory", f"{args.executor_memory}g")
         .config("spark.executor.cores", str(args.executor_cores))
         .config("spark.driver.memory", f"{args.driver_memory}g")
-        .config("spark.driver.maxResultSize", f"{max(args.driver_memory - 2, 4)}g") # i am leaving 2gb memory for the driver to use in general 
+        .config("spark.driver.maxResultSize", "512m")
         .config("spark.executor.instances", str(args.num_executors))
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") # memory efficient serializer source : https://www.javaspring.net/blog/java-lang-outofmemoryerror-java-heap-space-spark/ 
+        
+        
+        .config("spark.sql.shuffle.partitions", str((args.executor_cores * args.num_executors)* 4)) # rule of thumb : 2-4 partitions per core
+        .config("spark.sql.files.maxPartitionBytes", "268435456")  # 256MB # intiial partition size
+        .config("spark.sql.adaptive.enabled", "true") # let spark optimize the shuffle partitions
+        .config("spark.sql.adaptive.advisoryPartitionSizeInBytes", "134217728")  # 128MB
+    
+        
     )
 
     if args.enable_stage_metrics:
