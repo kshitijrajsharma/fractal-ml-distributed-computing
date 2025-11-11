@@ -96,7 +96,7 @@ def create_spark_session(args):
         .config("spark.executor.cores", str(args.executor_cores))
         .config("spark.driver.memory", driver_memory)
         .config("spark.executor.instances", str(args.num_executors))
-        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") # memory efficient serializer
+        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") # memory efficient serializer source : https://www.javaspring.net/blog/java-lang-outofmemoryerror-java-heap-space-spark/ 
     )
 
     if args.enable_stage_metrics:
