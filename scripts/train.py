@@ -247,16 +247,16 @@ def run_single_training(spark, args, stage_metrics):
         outputCol="features",
         handleInvalid="skip",
     )
-    total_cores = args.num_executors * args.executor_cores
-    num_trees = max(100, total_cores * 25)
+    # total_cores = args.num_executors * args.executor_cores
+    # num_trees = max(100, total_cores * 25)
 
-    logger.info(
-        f"RandomForest config: numTrees={num_trees} (total_cores={total_cores}, trees_per_core=25)"
-    )
+    # logger.info(
+    #     f"RandomForest config: numTrees={num_trees} (total_cores={total_cores}, trees_per_core=25)"
+    # )
     rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
-        numTrees=num_trees,
+        numTrees=40,
         maxDepth=6,
         seed=62,
     )
