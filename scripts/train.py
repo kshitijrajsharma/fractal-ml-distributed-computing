@@ -249,12 +249,6 @@ def run_single_training(spark, args, stage_metrics):
         outputCol="features",
         handleInvalid="skip",
     )
-    # total_cores = args.num_executors * args.executor_cores
-    # num_trees = max(100, total_cores * 25)
-
-    # logger.info(
-    #     f"RandomForest config: numTrees={num_trees} (total_cores={total_cores}, trees_per_core=25)"
-    # )
     rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
@@ -289,14 +283,12 @@ def run_single_training(spark, args, stage_metrics):
     total_time = time.time() - start_time
     logger.info(f"Total time: {total_time:.2f}s")
 
-    rf_model = model.stages[-1]
+    # rf_model = model.stages[-1]
     result = {
         "train_count": train_count,
         "val_count": val_count,
         "test_count": test_count,
         "num_partitions": num_partitions,
-        "num_trees": num_trees,
-        "total_cores": total_cores,
         "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
         "training_time_sec": round(train_time, 2),
