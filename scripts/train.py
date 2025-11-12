@@ -16,6 +16,8 @@ from pyspark.sql.functions import col, when
 
 cwd = os.getcwd()
 
+print(cwd)
+
 logger = logging.getLogger(__name__)
 
 
