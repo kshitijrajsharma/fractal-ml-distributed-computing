@@ -19,7 +19,8 @@ else
     for num_exec in "${NUM_EXECUTORS_LIST[@]}"; do
         for frac in "${DATA_FRACTIONS[@]}"; do
             echo "Running config: executors=${num_exec}, fraction=${frac}"
-            spark-submit --deploy-mode cluster --master yarn scripts/train.py --data "s3a://ubs-datasets/FRACTAL/data" --num-executors ${num_exec} --fraction ${frac} --executor-cores 2 --executor-memory 8 --driver-memory 2
+            spark-submit --deploy-mode cluster --master yarn scripts/train.py --data "s3a://ubs-datasets/FRACTAL/data" --num-executors ${num_exec} --fraction ${frac} --executor-cores 2 --executor-memory 8 --driver-memory 2 --output /home/efs/erasmus/raj/fractal-ml-distributed-computing/results --event-log-dir /home/efs/erasmus/raj/fractal-ml-distributed-computing/logs
+
             echo "Completed config: executors=${num_exec}, fraction=${frac}"
             echo "---"
         done
