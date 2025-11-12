@@ -19,7 +19,7 @@ if [ "$ORG" = "local" ]; then
 else
 
     NUM_EXECUTORS_LIST=(32 24 16 8 4 2)
-    DATA_FRACTIONS=(0.1 0.2 0.3 0.4 0.5)
+    DATA_FRACTIONS=(0.01 0.05 0.07 0.1 0.2)
 
     echo "Running in SERVER mode"
     for num_exec in "${NUM_EXECUTORS_LIST[@]}"; do
