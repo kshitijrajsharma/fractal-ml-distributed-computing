@@ -2,7 +2,7 @@
 
 ORG=${1:-local}
 NUM_EXECUTORS_LIST=(1 2 4)
-DATA_FRACTIONS=(0.01 0.05 0.1)
+DATA_FRACTIONS=(0.01 0.05 0.1 0.2)
 
 if [ "$ORG" = "local" ]; then
     echo "Running in LOCAL mode"

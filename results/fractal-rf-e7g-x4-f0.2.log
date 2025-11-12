@@ -1,27 +1,27 @@
-Command: /opt/spark/work-dir/scripts/train.py --master spark://spark-master:7077 --data /opt/spark/work-dir/data/FRACTAL --executor-cores 2 --num-executors 4 --executor-memory 7 --driver-memory 1 --fraction 0.2 --enable-stage-metrics --output /opt/spark/work-dir/results
+Command: /opt/spark/work-dir/scripts/train.py --master spark://spark-master:7077 --data /opt/spark/work-dir/data/FRACTAL --num-executors 4 --fraction 0.2 --executor-cores 2 --executor-memory 7 --driver-memory 1 --enable-stage-metrics --output /opt/spark/work-dir/results
 ============================================================
 
-2025-11-11 19:05:44 - INFO - Logging to: /opt/spark/spark-events/fractal-rf-e7g-x4-f0.2_20251111_190544.log
-2025-11-11 19:05:44 - INFO - Starting single training run
-2025-11-11 19:05:44 - INFO - Creating Spark session: fractal-rf-e7g-x4-f0.2
-2025-11-11 19:05:44 - INFO - Spark master: spark://spark-master:7077
-2025-11-11 19:05:44 - INFO - Stage metrics enabled
-2025-11-11 19:05:44 - INFO - Spark session created successfully : executors=4, cores=2, memory=7g, fraction=0.2
-2025-11-11 19:05:44 - INFO - Loading datasets
-2025-11-11 19:05:44 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/train/ with fraction=0.2
-2025-11-11 19:05:53 - INFO - Loading 16000/80000 files (20.0%)
-2025-11-11 19:06:05 - INFO - Loaded 1201961027 rows
-2025-11-11 19:06:05 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/val/ with fraction=0.2
-2025-11-11 19:06:06 - INFO - Loading 2000/10000 files (20.0%)
-2025-11-11 19:06:07 - INFO - Loaded 151271518 rows
-2025-11-11 19:06:07 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/test/ with fraction=0.2
-2025-11-11 19:06:08 - INFO - Loading 2000/10000 files (20.0%)
-2025-11-11 19:06:09 - INFO - Loaded 132641697 rows
-2025-11-11 19:06:11 - INFO - Train: 1201961027, Val: 151271518, Test: 132641697, Partitions: 445
-2025-11-11 19:06:11 - INFO - Training model
-2025-11-11 20:04:29 - INFO - Training completed: 3497.94s
-2025-11-11 20:13:28 - INFO - Validation accuracy: 0.7562
-2025-11-11 20:21:08 - INFO - Test accuracy: 0.7801
-2025-11-11 20:21:08 - INFO - Total time: 4523.73s
-2025-11-11 20:21:08 - INFO - Results saved to /opt/spark/work-dir/results/fractal-rf-e7g-x4-f0.2.json
-2025-11-11 20:21:09 - INFO - Spark session stopped
+2025-11-12 01:59:38 - INFO - Logging to: /opt/spark/spark-events/fractal-rf-e7g-x4-f0.2_20251112_015938.log
+2025-11-12 01:59:38 - INFO - Starting single training run
+2025-11-12 01:59:38 - INFO - Creating Spark session: fractal-rf-e7g-x4-f0.2
+2025-11-12 01:59:38 - INFO - Spark master: spark://spark-master:7077
+2025-11-12 01:59:38 - INFO - Stage metrics enabled
+2025-11-12 01:59:39 - INFO - Spark session created successfully : executors=4, cores=2, memory=7g, fraction=0.2
+2025-11-12 01:59:39 - INFO - Loading datasets
+2025-11-12 01:59:39 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/train/ with fraction=0.2
+2025-11-12 01:59:48 - INFO - Loading 16000/80000 files (20.0%)
+2025-11-12 01:59:59 - INFO - Loaded 1201961027 rows, final partitions: 445
+2025-11-12 01:59:59 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/val/ with fraction=0.2
+2025-11-12 02:00:00 - INFO - Loading 2000/10000 files (20.0%)
+2025-11-12 02:00:02 - INFO - Loaded 151271518 rows, final partitions: 56
+2025-11-12 02:00:02 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/test/ with fraction=0.2
+2025-11-12 02:00:03 - INFO - Loading 2000/10000 files (20.0%)
+2025-11-12 02:00:04 - INFO - Loaded 132641697 rows, final partitions: 53
+2025-11-12 02:00:06 - INFO - Train: 1201961027, Val: 151271518, Test: 132641697, Partitions: 445
+2025-11-12 02:00:06 - INFO - Training model
+2025-11-12 03:01:38 - INFO - Training completed: 3692.31s
+2025-11-12 03:09:43 - INFO - Validation accuracy: 0.7562
+2025-11-12 03:16:49 - INFO - Test accuracy: 0.7801
+2025-11-12 03:16:49 - INFO - Total time: 4629.89s
+2025-11-12 03:16:49 - INFO - Results saved to /opt/spark/work-dir/results/fractal-rf-e7g-x4-f0.2.json
+2025-11-12 03:16:50 - INFO - Spark session stopped
