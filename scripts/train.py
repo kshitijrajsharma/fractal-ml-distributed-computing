@@ -155,7 +155,8 @@ def load_sample(spark, path, fraction, cols):
     if row_count == 0:
         raise ValueError(f"No data loaded from {path}. Check data path and fraction.")
     
-    logger.info(f"Loaded {row_count} rows")
+    num_partitions = df.rdd.getNumPartitions()
+    logger.info(f"Loaded {row_count} rows, partitions: {num_partitions}")
     return df
 
 
@@ -175,7 +176,8 @@ def run_single_training(spark, args, stage_metrics):
     val_count = val.count()
     test_count = test.count()
     num_partitions = train.rdd.getNumPartitions()
-    logger.info(f"Train: {train_count}, Val: {val_count}, Test: {test_count}, Partitions: {num_partitions}")
+    rows_per_partition = train_count / num_partitions if num_partitions > 0 else 0
+    logger.info(f"Train: {train_count}, Val: {val_count}, Test: {test_count}, Partitions: {num_partitions}, Rows/partition: {rows_per_partition:.0f}")
 
     z_assembler = VectorAssembler(
         inputCols=["z_raw"], outputCol="z_vec", handleInvalid="skip"
@@ -188,11 +190,14 @@ def run_single_training(spark, args, stage_metrics):
         outputCol="features",
         handleInvalid="skip",
     )
-    # here param should come from the val set tuning , doing it manually for now 
+    total_cores = args.num_executors * args.executor_cores
+    num_trees = max(100, total_cores * 25)
+    
+    logger.info(f"RandomForest config: numTrees={num_trees} (total_cores={total_cores}, trees_per_core=25)")
     rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
-        numTrees=30,
+        numTrees=num_trees,
         maxDepth=6,
         seed=62
     )
@@ -229,6 +234,8 @@ def run_single_training(spark, args, stage_metrics):
         "val_count": val_count,
         "test_count": test_count,
         "num_partitions": num_partitions,
+        "num_trees": num_trees,
+        "total_cores": total_cores,
         "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
         "training_time_sec": round(train_time, 2),
