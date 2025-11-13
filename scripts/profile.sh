@@ -18,8 +18,8 @@ if [ "$ORG" = "local" ]; then
         DATA_FRACTIONS=($FRACTION_FILTER)
     else
         DATA_FRACTIONS=("${DEFAULT_FRACTIONS[@]}")
-    fi   
-   
+    fi
+    
     echo "Running in LOCAL mode"
     [ -n "$EXECUTOR_FILTER" ] && echo "Executor filter: ${EXECUTOR_FILTER}"
     [ -n "$FRACTION_FILTER" ] && echo "Fraction filter: ${FRACTION_FILTER}"
