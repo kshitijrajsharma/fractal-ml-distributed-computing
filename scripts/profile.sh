@@ -35,7 +35,7 @@ if [ "$ORG" = "local" ]; then
     done
 else
     DEFAULT_EXECUTORS=(32 24 16 8 4 2)
-    DEFAULT_FRACTIONS=(0.01 0.05 0.07 0.1 0.2)
+    DEFAULT_FRACTIONS=(0.01 0.05 0.07 0.1)
     
     if [ -n "$EXECUTOR_FILTER" ]; then
         NUM_EXECUTORS_LIST=($EXECUTOR_FILTER)
@@ -56,7 +56,7 @@ else
     for frac in "${DATA_FRACTIONS[@]}"; do
         for num_exec in "${NUM_EXECUTORS_LIST[@]}"; do
             echo "Running config: executors=${num_exec}, fraction=${frac}"
-            spark-submit --deploy-mode cluster --master yarn scripts/train.py --data "s3a://ubs-datasets/FRACTAL/data" --num-executors ${num_exec} --fraction ${frac} --executor-cores 2 --executor-memory 8 --driver-memory 2
+            spark-submit --deploy-mode cluster --master yarn scripts/train.py --data "s3a://ubs-datasets/FRACTAL/data" --num-executors ${num_exec} --fraction ${frac} --executor-cores 2 --executor-memory 8 --driver-memory 2 --upload-result-to-s3
 
             echo "Completed config: executors=${num_exec}, fraction=${frac}"
             echo "---"
