@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import boto3
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
@@ -102,6 +103,11 @@ def parse_args():
         "--event-log-dir",
         default=os.path.join(cwd, "logs"),
         help="Event log directory (used when stage metrics enabled)",
+    )
+    parser.add_argument(
+        "--upload-result-to-s3",
+        action="store_true",
+        help="Upload results to S3",
     )
     return parser.parse_args()
 
@@ -329,6 +335,17 @@ def main():
         json.dump(result, f, indent=2)
 
     logger.info(f"Results saved to {output_file}")
+
+    if args.upload_result_to_s3:
+        s3 = boto3.client("s3")
+        s3_key = f"erasmus/raj/{experiment_name}.json"
+        s3.put_object(
+            Bucket="ubs-homes",
+            Key=s3_key,
+            Body=json.dumps(result, indent=2),
+        )
+        logger.info(f"Results uploaded to s3://ubs-homes/{s3_key}")
+
     spark.stop()
     logger.info("Spark session stopped")
 

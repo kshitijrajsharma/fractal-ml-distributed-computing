@@ -56,7 +56,7 @@ else
     for frac in "${DATA_FRACTIONS[@]}"; do
         for num_exec in "${NUM_EXECUTORS_LIST[@]}"; do
             echo "Running config: executors=${num_exec}, fraction=${frac}"
-            spark-submit --deploy-mode cluster --master yarn scripts/train.py --data "s3a://ubs-datasets/FRACTAL/data" --num-executors ${num_exec} --fraction ${frac} --executor-cores 2 --executor-memory 8 --driver-memory 2
+            spark-submit --deploy-mode cluster --master yarn scripts/train.py --data "s3a://ubs-datasets/FRACTAL/data" --num-executors ${num_exec} --fraction ${frac} --executor-cores 2 --executor-memory 8 --driver-memory 2 --upload-result-to-s3
 
             echo "Completed config: executors=${num_exec}, fraction=${frac}"
             echo "---"
