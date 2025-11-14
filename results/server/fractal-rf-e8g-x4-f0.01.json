@@ -1,0 +1,14 @@
+{
+  "train_count": 59109292,
+  "val_count": 7015284,
+  "test_count": 11836835,
+  "num_partitions": 47,
+  "val_accuracy": 0.8087,
+  "test_accuracy": 0.7713,
+  "training_time_sec": 122.02,
+  "total_time_sec": 186.05,
+  "num_executors": 4,
+  "executor_cores": 2,
+  "sample_fraction": 0.01,
+  "executor_memory": 8
+}
