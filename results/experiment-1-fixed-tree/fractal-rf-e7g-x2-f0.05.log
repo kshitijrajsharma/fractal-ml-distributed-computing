@@ -1,0 +1,27 @@
+Command: /opt/spark/work-dir/scripts/train.py --master spark://spark-master:7077 --data /opt/spark/work-dir/data/FRACTAL --num-executors 2 --fraction 0.05 --executor-cores 2 --executor-memory 7 --driver-memory 1 --enable-stage-metrics --output /opt/spark/work-dir/results --event-log-dir /opt/spark/spark-events
+============================================================
+
+2025-11-13 11:59:07 - INFO - Logging to: /opt/spark/spark-events/fractal-rf-e7g-x2-f0.05_20251113_115907.log
+2025-11-13 11:59:07 - INFO - Starting single training run
+2025-11-13 11:59:07 - INFO - Creating Spark session: fractal-rf-e7g-x2-f0.05
+2025-11-13 11:59:07 - INFO - Spark master: spark://spark-master:7077
+2025-11-13 11:59:07 - INFO - Stage metrics enabled
+2025-11-13 11:59:08 - INFO - Spark session created successfully : executors=2, cores=2, memory=7g, fraction=0.05
+2025-11-13 11:59:08 - INFO - Loading datasets
+2025-11-13 11:59:08 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/train/ with fraction=0.05
+2025-11-13 11:59:16 - INFO - Loading 4000/80000 files (5.0%)
+2025-11-13 11:59:25 - INFO - Loaded 248515837 rows, partitions: 103
+2025-11-13 11:59:25 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/val/ with fraction=0.05
+2025-11-13 11:59:26 - INFO - Loading 500/10000 files (5.0%)
+2025-11-13 11:59:27 - INFO - Loaded 29591154 rows, partitions: 13
+2025-11-13 11:59:27 - INFO - Loading data from /opt/spark/work-dir/data/FRACTAL/test/ with fraction=0.05
+2025-11-13 11:59:28 - INFO - Loading 500/10000 files (5.0%)
+2025-11-13 11:59:29 - INFO - Loaded 40674645 rows, partitions: 15
+2025-11-13 11:59:30 - INFO - Train: 248515837, Val: 29591154, Test: 40674645, Partitions: 103, Rows/partition: 2412775
+2025-11-13 11:59:30 - INFO - Training model
+2025-11-13 12:32:44 - INFO - Training completed: 1994.46s
+2025-11-13 12:37:11 - INFO - Validation accuracy: 0.8056
+2025-11-13 12:42:56 - INFO - Test accuracy: 0.7919
+2025-11-13 12:42:56 - INFO - Total time: 2628.07s
+2025-11-13 12:42:56 - INFO - Results saved to /opt/spark/work-dir/results/fractal-rf-e7g-x2-f0.05.json
+2025-11-13 12:42:56 - INFO - Spark session stopped
