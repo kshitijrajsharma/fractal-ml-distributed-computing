@@ -35,7 +35,7 @@ if [ "$ORG" = "local" ]; then
     done
 else
     DEFAULT_EXECUTORS=(32 24 16 8 4 2)
-    DEFAULT_FRACTIONS=(0.01 0.05 0.07 0.1 0.2)
+    DEFAULT_FRACTIONS=(0.01 0.05 0.07 0.1)
     
     if [ -n "$EXECUTOR_FILTER" ]; then
         NUM_EXECUTORS_LIST=($EXECUTOR_FILTER)
