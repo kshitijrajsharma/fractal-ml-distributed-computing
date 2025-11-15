@@ -13,12 +13,9 @@ Local with local data :
 sudo docker exec spark-master spark-submit scripts/train.py  --master spark://spark-master:7077 --data "/opt/spark/work-dir/data/FRACTAL" --executor-cores 2 --num-executors 2 --executor-memory 7 --driver-memory 1 --fraction 0.01 --enable-stage-metrics --output "/opt/spark/work-dir/results"
 ```
 
-Local with remote data : 
-```bash
-docker exec spark-master spark-submit scripts/train.py --master spark://spark-master:7077 --data  "s3a://ubs-datasets/FRACTAL/data" --num-executors 2 --fraction 0.001 --executor-cores 2 --executor-memory 4 --driver-memory 1 --enable-stage-metrics --output /opt/spark/work-dir/results --event-log-dir /opt/spark/spark-events
-```
+## Use Profile :
 
-Use Profile :
+Run all exeriment at once
 
 make script executable
 
@@ -26,14 +23,14 @@ make script executable
 sudo chmod +x profile.sh
 ```
 
-execute
-
-```bash
-sudo bash profile.sh
-```
-
-To run the profile in the cluster
+To run the profile in the remote aws cluster
 
 ```bash
 sudo bash profile.sh server
+```
+
+To run the profile in the local cluster
+
+```bash
+sudo bash profile.sh local
 ```
