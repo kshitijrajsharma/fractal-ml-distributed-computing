@@ -12,6 +12,8 @@ We ran on the AWS EMR provided , it had the configuration of 64GB ram 8vcpu , wi
 ## Debug experiment
 
 not scaling due to .sample ( ) changed to file based partioning , Previously it was running for forever due to sample function which was loading entire data into the df: anticipated bug was it was counting the data and its proportion so that it can calculate the fraction https://github.com/kshitijrajsharma/fractal-ml-distributed-computing/commit/369f3a35625c565fcdc52881215189f1726e3634 , This was fixed using this commit !
+<img width="1280" height="832" alt="image" src="https://github.com/user-attachments/assets/896bb7af-0c1d-4ff6-a349-e4fd05836016" />
+
 
 ## First experiment
 
