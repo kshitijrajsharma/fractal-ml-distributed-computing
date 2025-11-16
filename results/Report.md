@@ -116,7 +116,7 @@ While running spark-submit in cluster deploy mode we were losing our logs. Later
 
 ## Discussion
 
-AWS server behaviour we are expecting may be due to bash script when it is testing on different fractions. It is consistently shutting down nodes, waking up and adding more overhead? Maybe would have been much better if we had run experiments in reverse way that executors first finish all the fractions and then ask for more executors and like that rather than constantly asking different executors in same fraction as per profile on the server. We later realized that after seeing how nodes were getting turned on and turned off mainly by spark-operator, which we anticipate might have also introduced the network overhead as well as the overhead of defining resources!
+AWS server behaviour we are expecting may be due to bash script when it is testing on different fractions. It is consistently shutting down nodes, waking up and adding more overhead? Maybe would have been much better if we had run experiments in reverse way that executors first finish all the fractions and then ask for more executors and like that rather than constantly asking different executors in same fraction as per profile on the server. We later realized that after seeing how nodes were getting turned on and turned off mainly by spark-operator, which we anticipate might have also introduced the network overhead as well as the overhead of defining resources! It is hard to explain the chart we have received , It looks like perhaps spark is overriding the vcpu configuration in the server ? For some reason we are getting this unusual graph that we couldnot explain , in local it is scaling properly with same script and configuration.
 
 ## Technical choices
 
