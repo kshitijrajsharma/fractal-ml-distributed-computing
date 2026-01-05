@@ -122,8 +122,3 @@ See [results/README.md](results/README.md) for detailed JSON schema and [results
 **Local Spark cluster** (Docker): Based on [spark-with-s3-docker](https://github.com/kshitijrajsharma/spark-with-s3-docker)
 
 **AWS EMR**: YARN cluster mode with S3 data access
-
-## License
-
-See repository license for details.
- 
