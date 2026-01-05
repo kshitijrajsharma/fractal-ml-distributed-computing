@@ -1,3 +1,11 @@
+"""Random Forest training on FRACTAL dataset using PySpark.
+
+Trains land cover classifier with configurable Spark resources and outputs JSON metrics.
+
+Usage:
+    spark-submit train.py --data /path/to/FRACTAL --num-executors 4 --fraction 0.01
+"""
+
 import argparse
 import json
 import logging
@@ -23,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_experiment_name(args):
+    """Generate experiment name from config or use auto-generated format."""
     return (
         args.experiment_name
         or f"fractal-rf-e{args.executor_memory}g-x{args.num_executors}-f{args.sample_fraction}"
@@ -30,6 +39,7 @@ def get_experiment_name(args):
 
 
 def setup_logging(args):
+    """Setup logging to file and console. Records command line for reproducibility."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_name = get_experiment_name(args)
     log_file = Path(args.event_log_dir) / f"{log_name}_{timestamp}.log"
@@ -55,6 +65,7 @@ def setup_logging(args):
 
 
 def parse_args():
+    """Parse command-line arguments for Spark config and training parameters."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-n", "--experiment-name", default=None, help="Experiment name for Spark app"
@@ -113,6 +124,7 @@ def parse_args():
 
 
 def create_spark_session(args):
+    """Initialize SparkSession with optimized configs for large-scale ML workloads."""
     app_name = get_experiment_name(args)
 
     logger.info(f"Creating Spark session: {app_name}")
@@ -168,6 +180,7 @@ def create_spark_session(args):
 
 
 def prepare_data(df):
+    """Feature engineering: extract z-coordinate and compute NDVI from RGB/infrared."""
     return (
         df.withColumn("z_raw", col("xyz")[2])
         .withColumn(
@@ -191,6 +204,7 @@ def prepare_data(df):
 
 
 def load_sample(spark, path, fraction, cols):
+    """Load fraction of parquet files using file-level sampling (avoids full dataset scan)."""
     logger.info(f"Loading data from {path} with fraction={fraction}")
 
     sc = spark.sparkContext
@@ -224,6 +238,7 @@ def load_sample(spark, path, fraction, cols):
 
 
 def run_single_training(spark, args, stage_metrics):
+    """Execute full training pipeline: load data, train RF model, evaluate, collect metrics."""
     cols = ["xyz", "Intensity", "Classification", "Red", "Green", "Blue", "Infrared"]
 
     if stage_metrics:
@@ -313,6 +328,7 @@ def run_single_training(spark, args, stage_metrics):
 
 
 def main():
+    """Main entry: parse args, create Spark session, train model, save results."""
     args = parse_args()
     setup_logging(args)
 

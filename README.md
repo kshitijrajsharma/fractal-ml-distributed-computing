@@ -97,7 +97,6 @@ Each JSON contains:
 - Execution times:
   - `training_time_sec`: Model fitting only
   - `total_time_sec`: Complete pipeline (load, preprocess, train, evaluate)
-  - Difference = preprocessing/feature engineering time
 - Resource configuration (executors, cores, memory, partitions)
 - Optional Spark metrics (stages, tasks, shuffle stats, memory usage)
 
