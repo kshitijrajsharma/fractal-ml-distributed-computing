@@ -182,13 +182,13 @@ def create_spark_session(args):
 def prepare_data(df):
     """Feature engineering: extract z-coordinate and compute NDVI from RGB/infrared."""
     return (
-        df.withColumn("z_raw", col("xyz")[2])
+        df.withColumn("z_raw", col("xyz")[2])  # Extract elevation from xyz array
         .withColumn(
-            "ndvi",
+            "ndvi",  # Normalized Difference Vegetation Index
             when(
                 (col("Infrared") + col("Red")) != 0,
                 (col("Infrared") - col("Red")) / (col("Infrared") + col("Red")),
-            ).otherwise(0),
+            ).otherwise(0),  # Avoid division by zero
         )
         .select(
             "z_raw",
@@ -207,6 +207,7 @@ def load_sample(spark, path, fraction, cols):
     """Load fraction of parquet files using file-level sampling (avoids full dataset scan)."""
     logger.info(f"Loading data from {path} with fraction={fraction}")
 
+    # Access Hadoop filesystem to list parquet files
     sc = spark.sparkContext
     hadoop_conf = sc._jsc.hadoopConfiguration()
 
@@ -214,17 +215,20 @@ def load_sample(spark, path, fraction, cols):
     fs = sc._jvm.org.apache.hadoop.fs.FileSystem.get(uri, hadoop_conf)
     file_path = sc._jvm.org.apache.hadoop.fs.Path(path)
 
+    # List all parquet files in directory
     all_files = [
         str(f.getPath())
         for f in fs.listStatus(file_path)
         if str(f.getPath()).endswith(".parquet")
     ]
 
+    # Select subset of files based on fraction (file-level sampling)
     num_files = max(1, int(len(all_files) * fraction))
     selected_files = sorted(all_files)[:num_files]
 
     logger.info(f"Loading {num_files}/{len(all_files)} files ({fraction*100:.1f}%)")
 
+    # Load selected files and apply feature engineering
     df = spark.read.parquet(*selected_files).select(*cols)
     df = prepare_data(df)
     row_count = df.count()
@@ -243,8 +247,9 @@ def run_single_training(spark, args, stage_metrics):
 
     if stage_metrics:
         stage_metrics.begin()
-    start_time = time.time()
+    start_time = time.time()  # Start timing entire pipeline
 
+    # Load train/val/test splits with file-level sampling
     logger.info("Loading datasets")
     train = load_sample(spark, f"{args.data_path}/train/", args.sample_fraction, cols)
     val = load_sample(spark, f"{args.data_path}/val/", args.sample_fraction, cols)
@@ -259,17 +264,21 @@ def run_single_training(spark, args, stage_metrics):
         f"Train: {train_count}, Val: {val_count}, Test: {test_count}, Partitions: {num_partitions}, Rows/partition: {rows_per_partition:.0f}"
     )
 
+    # Pipeline Stage 1: Wrap z_raw in vector for StandardScaler
     z_assembler = VectorAssembler(
         inputCols=["z_raw"], outputCol="z_vec", handleInvalid="skip"
     )
+    # Pipeline Stage 2: Normalize z-coordinate (elevation)
     z_scaler = StandardScaler(
         inputCol="z_vec", outputCol="z", withMean=False, withStd=True
     )
+    # Pipeline Stage 3: Assemble all features into single vector
     assembler = VectorAssembler(
         inputCols=["z", "Intensity", "Red", "Green", "Blue", "Infrared", "ndvi"],
         outputCol="features",
         handleInvalid="skip",
     )
+    # Pipeline Stage 4: Random Forest classifier (fixed config for experiments)
     rf = RandomForestClassifier(
         labelCol="label",
         featuresCol="features",
@@ -278,22 +287,26 @@ def run_single_training(spark, args, stage_metrics):
         seed=62,
     )
 
+    # Build ML pipeline: z_assembler -> z_scaler -> assembler -> rf
     pipeline = Pipeline(stages=[z_assembler, z_scaler, assembler, rf])
 
     evaluator = MulticlassClassificationEvaluator(
         labelCol="label", predictionCol="prediction", metricName="accuracy"
     )
 
+    # Train the model
     logger.info("Training model")
-    train_start = time.time()
+    train_start = time.time()  # Start timing model training only
     model = pipeline.fit(train)
-    train_time = time.time() - train_start
+    train_time = time.time() - train_start  # Pure training time
     logger.info(f"Training completed: {train_time:.2f}s")
 
+    # Evaluate on validation set
     val_predictions = model.transform(val)
     val_accuracy = evaluator.evaluate(val_predictions)
     logger.info(f"Validation accuracy: {val_accuracy:.4f}")
 
+    # Evaluate on test set
     test_predictions = model.transform(test)
     test_accuracy = evaluator.evaluate(test_predictions)
     logger.info(f"Test accuracy: {test_accuracy:.4f}")
@@ -301,10 +314,10 @@ def run_single_training(spark, args, stage_metrics):
     if stage_metrics:
         stage_metrics.end()
 
-    total_time = time.time() - start_time
+    total_time = time.time() - start_time  # Total time includes data loading + preprocessing + training
     logger.info(f"Total time: {total_time:.2f}s")
 
-    # rf_model = model.stages[-1]
+    # Compile results: metrics + resource config
     result = {
         "train_count": train_count,
         "val_count": val_count,
@@ -312,14 +325,15 @@ def run_single_training(spark, args, stage_metrics):
         "num_partitions": num_partitions,
         "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
-        "training_time_sec": round(train_time, 2),
-        "total_time_sec": round(total_time, 2),
+        "training_time_sec": round(train_time, 2),  # Model training only
+        "total_time_sec": round(total_time, 2),  # Full pipeline (load + preprocess + train + eval)
         "num_executors": args.num_executors,
         "executor_cores": args.executor_cores,
         "sample_fraction": args.sample_fraction,
         "executor_memory": args.executor_memory,
     }
 
+    # Add detailed Spark metrics if enabled
     if stage_metrics:
         metrics = stage_metrics.aggregate_stagemetrics()
         result["spark_metrics"] = dict(metrics) if metrics else {}
@@ -341,8 +355,10 @@ def main():
 
         stage_metrics = StageMetrics(spark)
 
+    # Run training pipeline and collect results
     result = run_single_training(spark, args, stage_metrics)
 
+    # Save results to JSON file
     Path(args.output_path).mkdir(parents=True, exist_ok=True)
     experiment_name = get_experiment_name(args)
     output_file = Path(args.output_path) / f"{experiment_name}.json"
@@ -352,6 +368,7 @@ def main():
 
     logger.info(f"Results saved to {output_file}")
 
+    # Optional: upload results to S3
     if args.upload_result_to_s3:
         s3 = boto3.client("s3")
         s3_key = f"erasmus/raj/{experiment_name}.json"
