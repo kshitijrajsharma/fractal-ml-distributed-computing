@@ -326,7 +326,7 @@ def run_single_training(spark, args, stage_metrics):
         "val_accuracy": round(val_accuracy, 4),
         "test_accuracy": round(test_accuracy, 4),
         "training_time_sec": round(train_time, 2),  # Model training only
-        "total_time_sec": round(total_time, 2),  # Full pipeline (load + preprocess + train + eval)
+        "total_time_sec": round(total_time, 2),  # Full pipeline (load + preprocess + train + eval) ## TODO : add each stage timing individually 
         "num_executors": args.num_executors,
         "executor_cores": args.executor_cores,
         "sample_fraction": args.sample_fraction,
